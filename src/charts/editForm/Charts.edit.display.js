@@ -16,125 +16,46 @@ export default [
     weight: 0
   },
   {
-    type: 'checkbox',
-    key: 'donut',
-    label: 'Donut Style',
-    input: true,
-    conditional: {
-      json: { "===": [{ var: 'data.chartType' }, 'pie'] }
-    },
-    weight: 1
-  },
-  {
     type: 'textfield',
-    key: 'innerRadius',
-    label: 'Inner Radius (e.g., 40%)',
-    input: true,
-    defaultValue: '40%',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
-      }
-    },
-    weight: 2
-  },
-  {
-    type: 'textfield',
-    key: 'outerRadius',
-    label: 'Outer Radius (e.g., 70%)',
-    input: true,
-    defaultValue: '70%',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
-      }
-    },
-    weight: 2
-  },
-  {
-    type: 'textfield',
-    key: 'centerContent',
-    label: 'Center Content',
-    input: true,
-    defaultValue: 'Center Content Here',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
-      }
-    },
-    weight: 2
-  },
-  {
-    type: 'textfield',
-    key: 'centerFontSize',
-    label: 'Center Font Size',
-    input: true,
-    defaultValue: '16px',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
-      }
-    },
-    weight: 2
+    key: 'title',
+    label: 'Chart Title',
+    weight: 1,
+    input: true
   },
   {
     type: 'colorpicker',
-    key: 'centerFontColor',
-    label: 'Center Font Color',
+    key: 'backgroundColor',
+    label: 'Background Color',
+    weight: 1,
     input: true,
-    defaultValue: '#333333',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
-      }
-    },
-    weight: 2
+    inputType: 'color',
+    defaultValue: '#FFFFFF'
   },
   {
-    type: 'textfield',
-    key: 'centerFontFamily',
-    label: 'Center Font Family',
+    type: 'select',
     input: true,
-    defaultValue: 'Arial, sans-serif',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
-      }
-    },
-    weight: 2
+    key: 'refreshOnChange',
+    label: 'Refresh On Change',
+    dataSrc: 'boolean',
+    weight: 2,
   },
   {
-    type: 'textfield',
-    key: 'centerFontWeight',
-    label: 'Center Font Weight',
+    type: 'datagrid',
     input: true,
-    defaultValue: 'normal',
-    conditional: {
-      json: {
-        and: [
-          { "===": [{ var: 'data.chartType' }, 'pie'] },
-          { "===": [{ var: 'data.donut' }, true] }
-        ]
+    key: 'refreshOnFields',
+    label: 'Refresh On Field Change',
+    weight: 2,
+    components: [
+      {
+        type: 'select',
+        input: true,
+        label: 'Field',
+        key: 'field',
+        dataSrc: 'form',
+        valueProperty: 'key',
+        template: '<span>{{ item.label }}</span>',
+        clearOnHide: false,
       }
-    },
-    weight: 2
+    ]
   }
 ];

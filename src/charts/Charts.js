@@ -12,21 +12,26 @@ export default class Charts extends Field {
       type: 'charts',
       label: 'Charts',
       key: 'charts',
-      chartType: 'bar', // default chart type
+      chartType: 'bar',
+      dataSource: '', // Key of DataGrid component to use as data source
       datasets: [], // datasets configuration
-      dynamicUpdate: false,
-      refreshOnFields: [],
+      dynamicUpdate: true, // Enable dynamic update by default
+      refreshOnChange: false, // Enable Refresh On Change option
+      refreshOnFields: [], // Fields to refresh on change
       options: {},
       events: [],
-      donut: true, // Enable donut by default, for demonstration
+      donut: false,
       innerRadius: '40%',
       outerRadius: '70%',
-      centerContent: 'Center Content Here', // Default text
+      centerContent: 'Center Content Here',
       centerFontSize: '16px',
       centerFontColor: '#333333',
       centerFontFamily: 'Arial, sans-serif',
       centerFontWeight: 'normal',
       title: 'Charts',
+      backgroundColor: '#FFFFFF',
+      xAxisLabel: 'X Axis',
+      yAxisLabel: 'Y Axis',
       ...extend
     });
   }
@@ -50,31 +55,49 @@ export default class Charts extends Field {
 
   render(content) {
     return super.render(`
-      <div ref="chartContainer" style="width: 100%; height: 300px; min-height: 300px;"></div>
+      <div ref="chartContainer" style="width: 100%; height: 100%; min-height: 300px; position: relative;"></div>
     `);
   }
 
   attach(element) {
-    console.log("Attach Function called!");
-
     this.loadRefs(element, {
       chartContainer: 'single'
     });
     super.attach(element);
     this.chartContainer = this.refs.chartContainer;
 
-    // Remove any previous center content overlay if it exists
+    if (this.chartContainer) {
+      this.chartContainer.style.width = '100%';
+      this.chartContainer.style.height = '300px';
+      this.initChart();
+    } else {
+      console.error("Chart container not found. Cannot initialize chart.");
+    }
+
+    // Add center content if donut pie chart
+    this.addCenterContent();
+
+    console.log("ATTACH", this.component.dataSource);
+
+    // Set up dynamic updating if enabled
+    if (this.component.refreshOnChange && this.component.refreshOnFields.length) {
+      this.setupDynamicFieldListeners(this.component.refreshOnFields);
+    } else if (this.component.dynamicUpdate && this.component.dataSource) {
+      // Fallback to basic data source update if no specific fields are selected
+      this.setupDataGridListener(this.component.dataSource);
+    }
+
+
+    return element;
+  }
+
+  addCenterContent() {
     const existingCenterContent = this.chartContainer.querySelector('.center-content');
     if (existingCenterContent) {
       this.chartContainer.removeChild(existingCenterContent);
     }
 
-    console.log("Chart Type", this.component.chartType);
-    console.log("Donut Checked", this.component.donut);
-
-    // Add an overlay div for center content only for donut pie chart
     if (this.component.chartType === 'pie' && this.component.donut) {
-      console.log("Hooray!!");
       const centerContent = document.createElement('div');
       centerContent.className = 'center-content';
       centerContent.innerHTML = this.component.centerContent || 'Center Content Here';
@@ -88,112 +111,78 @@ export default class Charts extends Field {
       centerContent.style.fontWeight = this.component.centerFontWeight || 'normal';
       this.chartContainer.appendChild(centerContent);
     }
-
-    // Initialize the chart with ECharts
-    this.initChart();
-
-    // Set up dynamic updating based on form field changes
-    if (this.component.dynamicUpdate && this.component.refreshOnFields.length) {
-      this.setupDynamicUpdates();
-    }
-
-    return element;
   }
 
   initChart() {
     if (!this.chartContainer) return;
 
-    const { chartType, options, datasets } = this.component;
+    const { chartType, options } = this.component;
     this.chart = echarts.init(this.chartContainer);
 
-    // Generate and set the chart options
-    const chartOptions = this.generateChartOptions(chartType, datasets, options);
+    // Set the initial chart options
+    this.updateChartWithDataSource();
+
+    // Set up event handling
+    this.setupEvents();
+  }
+
+  translate(text) {
+    return Formio.i18next ? Formio.i18next.t(text) : text;
+  }
+
+  updateChartWithDataSource() {
+    console.log("updateChartWithDataSource called!");
+    const { chartType, dataSource } = this.component;
+
+    // Check if the chart is initialized, if not, initialize it
+    if (!this.chart) {
+      console.warn("Chart is not initialized. Initializing now.");
+      this.initChart();
+    }
+
+    if (!this.chart) {
+      console.error("Failed to initialize chart.");
+      return;
+    }
+
+    // Retrieve data from the specified DataGrid component
+    const sourceComponent = this.root.components.find(c => c.component.key === dataSource);
+    const datasets = sourceComponent ? sourceComponent.dataValue.filter(row => (row.label && row.value && row.color)).map(row => ({
+      label: row.label,
+      value: row.value,
+      color: row.color
+    })) : this.component.datasets;
+
+    console.log("DataSets", datasets);
+
+    // Generate chart options based on the data and update the chart
+    const chartOptions = this.generateChartOptions(chartType, datasets);
     this.chart.setOption(chartOptions);
   }
 
-  // generateChartOptions(type, datasets) {
-  //   const baseOptions = {
-  //     title: {
-  //       text: this.component.options.title || 'Chart'
-  //     },
-  //     tooltip: { trigger: type === 'pie' ? 'item' : 'axis' }, // Use 'item' trigger for pie chart
-  //     series: []
-  //   };
-
-  //   // Conditionally add xAxis and yAxis only for bar and line charts
-  //   if (type !== 'pie') {
-  //     baseOptions.xAxis = {
-  //       type: 'category',
-  //       data: datasets.map((d) => d.label) // Set x-axis labels only for non-pie charts
-  //     };
-  //     baseOptions.yAxis = { type: 'value' };
-  //   }
-
-  //   // Configure series based on chart type
-  //   switch (type) {
-  //     case 'line':
-  //       baseOptions.series = [{
-  //         name: 'Line Series',
-  //         type: 'line',
-  //         data: datasets.map(dataset => dataset.value),
-  //         itemStyle: { color: (params) => datasets[params.dataIndex].color }
-  //       }];
-  //       break;
-
-  //     case 'pie':
-  //       baseOptions.series = [
-  //         {
-  //           type: 'pie',
-  //           radius: this.component.options.donut ? ['40%', '70%'] : '50%',
-  //           data: datasets.map((dataset) => ({
-  //             value: dataset.value,
-  //             name: dataset.label,
-  //             itemStyle: { color: dataset.color }
-  //           })),
-  //           label: {
-  //             formatter: '{b} : {c} ({d}%)'
-  //           }
-  //         }
-  //       ];
-  //       break;
-
-  //     case 'bar':
-  //     default:
-  //       baseOptions.series = [
-  //         {
-  //           name: 'Bar Series',
-  //           type: 'bar',
-  //           data: datasets.map(dataset => ({
-  //             value: dataset.value,
-  //             itemStyle: { color: dataset.color }
-  //           }))
-  //         }
-  //       ];
-  //       break;
-  //   }
-
-  //   return baseOptions;
-  // }
 
   generateChartOptions(type, datasets) {
     const baseOptions = {
       title: {
-        text: this.component.title || 'Chart'
+        text: this.translate(this.component.title || 'Chart')
       },
+      backgroundColor: this.component.backgroundColor || '#FFFFFF',
+      legend: {
+        data: datasets.map((dataset) => this.translate(dataset.label)),
+      },
+      xAxis: type !== 'pie' ? {
+        type: 'category',
+        name: this.translate(this.component.xAxisLabel || ''),
+        data: datasets.map((dataset) => this.translate(dataset.label)),
+      } : null,
+      yAxis: type !== 'pie' ? {
+        type: 'value',
+        name: this.translate(this.component.yAxisLabel || ''),
+      } : null,
       tooltip: { trigger: type === 'pie' ? 'item' : 'axis' },
       series: []
     };
 
-    // Conditionally add xAxis and yAxis only for bar and line charts
-    if (type !== 'pie') {
-      baseOptions.xAxis = {
-        type: 'category',
-        data: datasets.map((d) => d.label)
-      };
-      baseOptions.yAxis = { type: 'value' };
-    }
-
-    // Configure series based on chart type
     switch (type) {
       case 'line':
         baseOptions.series = [{
@@ -210,7 +199,7 @@ export default class Charts extends Field {
             type: 'pie',
             radius: this.component.donut
               ? [this.component.innerRadius || '40%', this.component.outerRadius || '70%']
-              : '50%', // Regular pie chart with no inner radius if not donut
+              : '50%',
             data: datasets.map((dataset) => ({
               value: dataset.value,
               name: dataset.label,
@@ -225,47 +214,51 @@ export default class Charts extends Field {
 
       case 'bar':
       default:
-        baseOptions.series = [
-          {
-            name: 'Bar Series',
-            type: 'bar',
-            data: datasets.map(dataset => ({
-              value: dataset.value,
-              itemStyle: { color: dataset.color }
-            }))
-          }
-        ];
+        baseOptions.series = [{
+          name: 'Bar Series',
+          type: 'bar',
+          data: datasets.map(dataset => ({
+            value: dataset.value,
+            itemStyle: { color: dataset.color }
+          }))
+        }];
         break;
     }
 
     return baseOptions;
   }
 
-
-  setupDynamicUpdates() {
-    const { refreshOnFields } = this.component;
+  setupDynamicFieldListeners(fieldKeys) {
     const onFormChange = () => {
-      const chartOptions = this.generateChartOptions(
-        this.component.chartType,
-        this.component.datasets
-      );
-      this.chart.setOption(chartOptions, { notMerge: true });
+      this.updateChartWithDataSource();
     };
 
-    refreshOnFields.forEach((fieldKey) => {
-      this.onChangeListener(fieldKey, onFormChange);
+    fieldKeys.forEach((fieldKey) => {
+      this.root.on(`change`, (changed) => {
+        if (changed.changed && changed.changed.component && changed.changed.component.key === fieldKey) {
+          onFormChange();
+        }
+      });
     });
   }
 
-  onChangeListener(fieldKey, callback) {
-    this.root.on(`change`, (changed) => {
-      if (changed.changed && changed.changed.component && changed.changed.component.key === fieldKey) {
-        callback();
-      }
+
+  setupDataGridListener(dataSourceKey) {
+    console.log("Listener", dataSourceKey);
+    console.log("root components", this.root.components);
+    const sourceComponent = this.root.components.find(c => c.component.key === dataSourceKey);
+
+    if (!sourceComponent) {
+      console.error(`DataGrid with key "${dataSourceKey}" not found.`);
+      return;
+    }
+
+    // Listen for changes in the DataGrid component's value
+    sourceComponent.on('change', () => {
+      this.updateChartWithDataSource();
     });
   }
 
-  // Handles custom events on ECharts
   setupEvents() {
     if (!this.chart) return;
 

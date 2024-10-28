@@ -7,7 +7,7 @@ export default class ColorPickerComponent extends Field {
       type: 'colorpicker',
       label: 'Color Picker',
       key: 'colorpicker',
-      defaultValue: '#000000',
+      defaultValue: '#FFFFFF',
       ...extend,
     });
   }
@@ -26,8 +26,7 @@ export default class ColorPickerComponent extends Field {
   render() {
     return super.render(`
       <div>
-        <label for="${this.key}" class="control-label">${this.component.label}</label>
-        <input type="color" id="${this.key}" ref="input" value="${this.component.defaultValue || '#000000'}" />
+        <input type="color" id="${this.key}" ref="input" value="${this.component.defaultValue || '#FFFFFF'}" />
       </div>
     `);
   }

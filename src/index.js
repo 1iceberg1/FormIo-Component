@@ -4,15 +4,6 @@ import ColorPickerComponent from './colorpicker/ColorPicker.js';
 
 Formio.Components.addComponent('colorpicker', ColorPickerComponent);
 
-
-Formio.use([
-   {
-      components: {
-         rating: Charts
-      }
-   }
-])
-
 Formio.builder(document.getElementById("builder"), {}, {
    sanitizeConfig: {
       addTags: ["svg", "path"],

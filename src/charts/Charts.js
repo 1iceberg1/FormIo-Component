@@ -4,6 +4,8 @@ import chartsEditForm from './Charts.form.js';
 
 const Field = Formio.Components.components.field;
 
+const t = Formio.i18next ? Formio.i18next.t.bind(Formio.i18next) : (key) => key;
+
 export default class Charts extends Field {
   static editForm = chartsEditForm;
 
@@ -16,7 +18,7 @@ export default class Charts extends Field {
       dataSource: '', // Key of DataGrid component to use as data source
       datasets: [], // datasets configuration
       dynamicUpdate: true, // Enable dynamic update by default
-      refreshOnChange: false, // Enable Refresh On Change option
+      refreshOnChange: true, // Enable Refresh On Change option
       refreshOnFields: [], // Fields to refresh on change
       options: {},
       events: [],
@@ -32,6 +34,8 @@ export default class Charts extends Field {
       backgroundColor: '#FFFFFF',
       xAxisLabel: 'X Axis',
       yAxisLabel: 'Y Axis',
+      width: '100%',
+      height: '300px',
       ...extend
     });
   }
@@ -54,8 +58,12 @@ export default class Charts extends Field {
   }
 
   render(content) {
+    // Set the width and height from the component settings
+    const width = this.component.width || '100%';
+    const height = this.component.height || '300px';
+
     return super.render(`
-      <div ref="chartContainer" style="width: 100%; height: 100%; min-height: 300px; position: relative;"></div>
+      <div ref="chartContainer" style="width: ${width}; height: ${height}; min-height: 300px; position: relative;"></div>
     `);
   }
 
@@ -67,8 +75,8 @@ export default class Charts extends Field {
     this.chartContainer = this.refs.chartContainer;
 
     if (this.chartContainer) {
-      this.chartContainer.style.width = '100%';
-      this.chartContainer.style.height = '300px';
+      this.chartContainer.style.width = this.component.width || '100%';
+      this.chartContainer.style.height = this.component.height || '300px';
       this.initChart();
     } else {
       console.error("Chart container not found. Cannot initialize chart.");
@@ -81,6 +89,7 @@ export default class Charts extends Field {
 
     // Set up dynamic updating if enabled
     if (this.component.refreshOnChange && this.component.refreshOnFields.length) {
+      console.log("REFRESH SETUP");
       this.setupDynamicFieldListeners(this.component.refreshOnFields);
     } else if (this.component.dynamicUpdate && this.component.dataSource) {
       // Fallback to basic data source update if no specific fields are selected
@@ -100,7 +109,6 @@ export default class Charts extends Field {
     if (this.component.chartType === 'pie' && this.component.donut) {
       const centerContent = document.createElement('div');
       centerContent.className = 'center-content';
-      centerContent.innerHTML = this.component.centerContent || 'Center Content Here';
       centerContent.style.position = 'absolute';
       centerContent.style.top = '50%';
       centerContent.style.left = '50%';
@@ -110,6 +118,36 @@ export default class Charts extends Field {
       centerContent.style.fontFamily = this.component.centerFontFamily || 'Arial, sans-serif';
       centerContent.style.fontWeight = this.component.centerFontWeight || 'normal';
       this.chartContainer.appendChild(centerContent);
+
+      // Initial content setup
+      this.updateCenterContent(centerContent);
+    }
+  }
+
+  // Helper function to update the center content with dynamic data
+  updateCenterContent(centerContentElement) {
+    const data = this.root.data || {}; // Get the form data
+    const utils = Formio.Utils; // Access utils for currency formatting, etc.
+    const centerContentTemplate = this.component.centerContent;
+
+    const processedContent = this.evaluateExpression(centerContentTemplate, { data, utils });
+    centerContentElement.innerHTML = processedContent;
+  }
+
+  evaluateExpression(expression, context = {}) {
+    if (!expression) return expression;
+
+    const extendedContext = {
+      ...context,
+      t, // Include translation function
+    };
+  
+    try {
+      // Use Formio's interpolate function to evaluate the expression with context
+      return Formio.Utils.interpolate(expression, extendedContext);
+    } catch (error) {
+      console.warn(`Failed to evaluate expression: "${expression}"`, error);
+      return '';
     }
   }
 
@@ -145,21 +183,28 @@ export default class Charts extends Field {
       return;
     }
 
-    // Retrieve data from the specified DataGrid component
+    const data = this.root.data || {}; // Access the form's data object
+
+    // Retrieve data from the specified DataGrid component, or fallback to this.component.datasets
     const sourceComponent = this.root.components.find(c => c.component.key === dataSource);
-    const datasets = sourceComponent ? sourceComponent.dataValue.filter(row => (row.label && row.value && row.color)).map(row => ({
-      label: row.label,
-      value: row.value,
-      color: row.color
-    })) : this.component.datasets;
+    const datasets = (sourceComponent ? sourceComponent.dataValue : this.component.datasets).map(row => ({
+      label: this.evaluateExpression(row.label, data),
+      value: parseFloat(this.evaluateExpression(row.value, data)) || 0,
+      color: this.evaluateExpression(row.color, data) || '#000000' // Default color if missing
+    }));
 
     console.log("DataSets", datasets);
 
     // Generate chart options based on the data and update the chart
     const chartOptions = this.generateChartOptions(chartType, datasets);
-    this.chart.setOption(chartOptions);
-  }
+    this.chart.setOption(chartOptions, true); // `true` allows for dynamic updating
 
+    // Update center content dynamically based on data changes
+    const centerContentElement = this.chartContainer.querySelector('.center-content');
+    if (centerContentElement) {
+      this.updateCenterContent(centerContentElement);
+    }
+  }
 
   generateChartOptions(type, datasets) {
     const baseOptions = {
@@ -167,9 +212,9 @@ export default class Charts extends Field {
         text: this.translate(this.component.title || 'Chart')
       },
       backgroundColor: this.component.backgroundColor || '#FFFFFF',
-      legend: {
-        data: datasets.map((dataset) => this.translate(dataset.label)),
-      },
+      // legend: {
+      //   data: datasets.map((dataset) => this.translate(dataset.label)),
+      // },
       xAxis: type !== 'pie' ? {
         type: 'category',
         name: this.translate(this.component.xAxisLabel || ''),
@@ -189,7 +234,9 @@ export default class Charts extends Field {
           name: 'Line Series',
           type: 'line',
           data: datasets.map(dataset => dataset.value),
-          itemStyle: { color: (params) => datasets[params.dataIndex].color }
+          itemStyle: {
+            color: (params) => datasets[params.dataIndex].color || '#000000' // Default to black if color is missing
+          }
         }];
         break;
 
@@ -203,10 +250,19 @@ export default class Charts extends Field {
             data: datasets.map((dataset) => ({
               value: dataset.value,
               name: dataset.label,
-              itemStyle: { color: dataset.color }
+              itemStyle: { color: dataset.color || '#000000' } // Default to black if color is missing
             })),
             label: {
-              formatter: '{b} : {c} ({d}%)'
+              // formatter: '{b} : {c} ({d}%)',
+              show: true,                      // Enable the labels
+              position: 'inside',              // Display labels inside the pie pieces
+              // formatter: '{d}%',               // Display percentage with each piece
+              formatter: (params) => {
+                // Only show the label if the percentage is greater than 0
+                return params.percent > 0 ? `${params.percent}%` : '';
+              },
+              fontSize: 14,                    // Adjust font size if needed
+              color: '#FFFFFF'                 // Set font color to white for better visibility
             }
           }
         ];
@@ -219,7 +275,7 @@ export default class Charts extends Field {
           type: 'bar',
           data: datasets.map(dataset => ({
             value: dataset.value,
-            itemStyle: { color: dataset.color }
+            itemStyle: { color: dataset.color || '#000000' } // Default to black if color is missing
           }))
         }];
         break;
@@ -228,16 +284,37 @@ export default class Charts extends Field {
     return baseOptions;
   }
 
+
+  // setupDynamicFieldListeners(fieldKeys) {
+  //   const onFormChange = () => {
+  //     this.updateChartWithDataSource();
+  //   };
+
+  //   console.log("FIELD KEYS", fieldKeys);
+
+  //   fieldKeys.forEach((fieldKey) => {
+  //     this.root.on(`change`, (changed) => {
+  //       console.log("CHANGED", changed);
+  //       console.log("FIELD KEY", fieldKey);
+  //       if (changed.changed && changed.changed.component && changed.changed.component.key === fieldKey.field) {
+  //         onFormChange();
+  //       }
+  //     });
+  //   });
+  // }
+
   setupDynamicFieldListeners(fieldKeys) {
     const onFormChange = () => {
       this.updateChartWithDataSource();
     };
 
+    console.log("FIELD KEYS", fieldKeys);
+
+    // Loop through each field key and attach individual listeners
     fieldKeys.forEach((fieldKey) => {
-      this.root.on(`change`, (changed) => {
-        if (changed.changed && changed.changed.component && changed.changed.component.key === fieldKey) {
-          onFormChange();
-        }
+      if (this.root.getComponent(fieldKey.field)) this.root.getComponent(fieldKey.field).on('change', () => {
+        console.log("Field changed:", fieldKey.field);
+        onFormChange();
       });
     });
   }

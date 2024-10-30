@@ -1,20 +1,20 @@
 export default [
-  {
-    type: 'select',
-    key: 'dataSource',
-    label: 'Data Source',
-    input: true,
-    dataSrc: 'custom',
-    data: {
-      custom: function (context) {
-        // List all DataGrid components in the form for selection
-        return context.instance.options.editForm.components
-          .filter(component => component.type === 'datagrid')
-          .map(component => component.key);
-      }
-    },
-    weight: 0
-  },
+  // {
+  //   type: 'select',
+  //   key: 'dataSource',
+  //   label: 'Data Source',
+  //   input: true,
+  //   dataSrc: 'custom',
+  //   data: {
+  //     custom: function (context) {
+  //       // List all DataGrid components in the form for selection
+  //       return context.instance.options.editForm.components
+  //         .filter(component => component.type === 'datagrid')
+  //         .map(component => component.key);
+  //     }
+  //   },
+  //   weight: 0
+  // },
   {
     type: 'datagrid',
     input: true,

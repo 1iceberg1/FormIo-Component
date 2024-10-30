@@ -32,29 +32,39 @@ export default [
     defaultValue: '#FFFFFF'
   },
   {
-    type: 'select',
+    type: 'checkbox',
     input: true,
     key: 'refreshOnChange',
     label: 'Refresh On Change',
     dataSrc: 'boolean',
-    weight: 2,
+    weight: 20,
   },
   {
     type: 'datagrid',
     input: true,
     key: 'refreshOnFields',
     label: 'Refresh On Field Change',
-    weight: 2,
+    weight: 25,
+    conditional: {
+      json: { "===": [{ var: 'data.refreshOnChange' }, true] }
+    },
     components: [
       {
         type: 'select',
         input: true,
         label: 'Field',
         key: 'field',
-        dataSrc: 'form',
+        dataSrc: 'custom',
         valueProperty: 'key',
-        template: '<span>{{ item.label }}</span>',
+        template: '<span>{{ item.label || item.key }}</span>',
         clearOnHide: false,
+        data: {
+          custom: function (context) {
+            console.log("CONTEXTTTTTTTT", context);
+            const fields = context.instance.options.editForm.components.map(component => component.key);
+            return fields;
+          }
+        }
       }
     ]
   }

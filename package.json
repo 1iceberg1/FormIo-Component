@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "echarts": "^5.5.1",
-    "formiojs": "^4.21.5"
+    "formiojs": "^4.21.5",
+    "i18next": "^23.16.4"
   }
 }

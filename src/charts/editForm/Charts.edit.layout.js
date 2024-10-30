@@ -1,6 +1,22 @@
 export default [
   {
     type: 'textfield',
+    key: 'width',
+    label: 'Width',
+    weight: 0,
+    input: true,
+    defaultValue: '100%',
+  },
+  {
+    type: 'textfield',
+    key: 'height',
+    label: 'Height',
+    weight: 0,
+    input: true,
+    defaultValue: '300px',
+  },
+  {
+    type: 'textfield',
     key: 'xAxisLabel',
     label: 'X-Axis Label',
     weight: 1,

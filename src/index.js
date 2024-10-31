@@ -327,7 +327,8 @@ const formJson = {
                      "type": 'charts',            // Custom component type registered with Formio
                      "key": 'loanAnalysisChart',  // Unique key
                      "label": 'Loan Analysis Chart',
-                     "chartType": 'pie',          // Specify the chart type
+                     "chartType": 'bar',          // Specify the chart type
+                     "stacked": true,
                      "donut": true,
                      "innerRadius": '40%',
                      "outerRadius": '70%',
@@ -350,26 +351,52 @@ const formJson = {
                         { field: 'monthlyInsurance' },
                         { field: 'monthlyPayment' }
                      ],
+                     jsonRawData: [
+                        { date: '202401', principal: 5000, interest: 2500, balance: 4950 },
+                        { date: '202402', principal: 5050, interest: 2450, balance: 4900 },
+                        { date: '202403', principal: 5100, interest: 2400, balance: 4850 },
+                        { date: '202404', principal: 5150, interest: 2350, balance: 4800 },
+                        { date: '202405', principal: 5200, interest: 2300, balance: 4750 },
+                        { date: '202406', principal: 5250, interest: 2250, balance: 4700 },
+                        { date: '202407', principal: 5300, interest: 2200, balance: 4650 },
+                        { date: '202408', principal: 5350, interest: 2150, balance: 4600 },
+                     ],
+                     xAxisKey: 'date',
                      datasets: [
+                        // {
+                        //    label: "{{t('Principal and Interest')}}",
+                        //    value: "{{ data.monthlyPrincipalAndInterest }}",
+                        //    color: "#007bff",
+                        // },
+                        // {
+                        //    label: "{{t('Taxes')}}",
+                        //    value: "{{ data.monthlyTaxes }}",
+                        //    color: '#28a745'
+                        // },
+                        // {
+                        //    label: "{{t('HOA Dues')}}",
+                        //    value: "{{ data.monthlyHoa }}",
+                        //    color: "#ffc107"
+                        // },
+                        // {
+                        //    label: `{{t("Homeowner's Insurance")}}`,
+                        //    value: "{{ data.monthlyInsurance }}",
+                        //    color: "#dc3545"
+                        // }
                         {
-                           label: "{{t('Principal and Interest')}}",
-                           value: "{{ data.monthlyPrincipalAndInterest }}",
+                           label: 'Principal',
+                           value: 'principal',
                            color: "#007bff",
                         },
                         {
-                           label: "{{t('Taxes')}}",
-                           value: "{{ data.monthlyTaxes }}",
-                           color: '#28a745'
+                           label: 'Intereset',
+                           value: 'interest',
+                           color: "#28a745",
                         },
                         {
-                           label: "{{t('HOA Dues')}}",
-                           value: "{{ data.monthlyHoa }}",
-                           color: "#ffc107"
-                        },
-                        {
-                           label: `{{t("Homeowner's Insurance")}}`,
-                           value: "{{ data.monthlyInsurance }}",
-                           color: "#dc3545"
+                           label: 'Balance',
+                           value: 'balance',
+                           color: "#ffc107",
                         }
                      ],
                      "input": false,
@@ -605,9 +632,21 @@ const formJson = {
    ]
 }
 
-// Render the form using Formio
-Formio.createForm(document.getElementById("formio"), formJson).then(form => {
-   form.on('change', (event) => {
+// // Render the form using Formio
+// Formio.createForm(document.getElementById("formio"), formJson).then(form => {
+//    form.on('change', (event) => {
+//       console.log("Form Data Changed:", event.data);
+//    });
+// });
+
+// Render the form builder
+Formio.builder(document.getElementById("builder"), formJson, {
+   sanitizeConfig: {
+      addTags: ["svg", "path"],
+      addAttr: ["d", "viewBox"]
+   }
+}).then(builder => {
+   builder.on('change', (event) => {
       console.log("Form Data Changed:", event.data);
    });
 });

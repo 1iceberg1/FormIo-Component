@@ -17,11 +17,14 @@ export default class Charts extends Field {
       chartType: 'bar',
       dataSource: '', // Key of DataGrid component to use as data source
       datasets: [], // datasets configuration
+      jsonRawData: [], // JSON data source
+      xAxisKey: '', // key of the json object that represents xAxis
       dynamicUpdate: true, // Enable dynamic update by default
       refreshOnChange: true, // Enable Refresh On Change option
       refreshOnFields: [], // Fields to refresh on change
       options: {},
       events: [],
+      stacked: false,
       donut: false,
       innerRadius: '40%',
       outerRadius: '70%',
@@ -36,6 +39,7 @@ export default class Charts extends Field {
       yAxisLabel: 'Y Axis',
       width: '100%',
       height: '300px',
+      aspectRatio: '1',
       ...extend
     });
   }
@@ -60,10 +64,10 @@ export default class Charts extends Field {
   render(content) {
     // Set the width and height from the component settings
     const width = this.component.width || '100%';
-    const height = this.component.height || '300px';
+    const aspectRatio = this.component.aspectRatio || 1;
 
     return super.render(`
-      <div ref="chartContainer" style="width: ${width}; height: ${height}; min-height: 300px; position: relative;"></div>
+      <div ref="chartContainer" style="width: ${width}; aspect-ratio: ${aspectRatio}; position: relative;"></div>
     `);
   }
 
@@ -76,26 +80,25 @@ export default class Charts extends Field {
 
     if (this.chartContainer) {
       this.chartContainer.style.width = this.component.width || '100%';
-      this.chartContainer.style.height = this.component.height || '300px';
+
+      // Use aspect-ratio if specified, else fallback to height
+      if (!this.component.height) {
+        this.chartContainer.style.aspectRatio = `${this.component.aspectRatio}`;
+      } else {
+        this.chartContainer.style.height = this.component.height;
+      }
       this.initChart();
     } else {
       console.error("Chart container not found. Cannot initialize chart.");
     }
 
-    // Add center content if donut pie chart
     this.addCenterContent();
 
-    console.log("ATTACH", this.component.dataSource);
-
-    // Set up dynamic updating if enabled
     if (this.component.refreshOnChange && this.component.refreshOnFields.length) {
-      console.log("REFRESH SETUP");
       this.setupDynamicFieldListeners(this.component.refreshOnFields);
     } else if (this.component.dynamicUpdate && this.component.dataSource) {
-      // Fallback to basic data source update if no specific fields are selected
       this.setupDataGridListener(this.component.dataSource);
     }
-
 
     return element;
   }
@@ -106,7 +109,9 @@ export default class Charts extends Field {
       this.chartContainer.removeChild(existingCenterContent);
     }
 
-    if (this.component.chartType === 'pie' && this.component.donut) {
+    const { chartType, donut } = this.component;
+
+    if (chartType === 'pie' && donut) {
       const centerContent = document.createElement('div');
       centerContent.className = 'center-content';
       centerContent.style.position = 'absolute';
@@ -119,17 +124,14 @@ export default class Charts extends Field {
       centerContent.style.fontWeight = this.component.centerFontWeight || 'normal';
       this.chartContainer.appendChild(centerContent);
 
-      // Initial content setup
       this.updateCenterContent(centerContent);
     }
   }
 
-  // Helper function to update the center content with dynamic data
   updateCenterContent(centerContentElement) {
-    const data = this.root.data || {}; // Get the form data
-    const utils = Formio.Utils; // Access utils for currency formatting, etc.
+    const data = this.root.data || {};
+    const utils = Formio.Utils;
     const centerContentTemplate = this.component.centerContent;
-
     const processedContent = this.evaluateExpression(centerContentTemplate, { data, utils });
     centerContentElement.innerHTML = processedContent;
   }
@@ -139,11 +141,10 @@ export default class Charts extends Field {
 
     const extendedContext = {
       ...context,
-      t, // Include translation function
+      t,
     };
-  
+
     try {
-      // Use Formio's interpolate function to evaluate the expression with context
       return Formio.Utils.interpolate(expression, extendedContext);
     } catch (error) {
       console.warn(`Failed to evaluate expression: "${expression}"`, error);
@@ -157,10 +158,7 @@ export default class Charts extends Field {
     const { chartType, options } = this.component;
     this.chart = echarts.init(this.chartContainer);
 
-    // Set the initial chart options
     this.updateChartWithDataSource();
-
-    // Set up event handling
     this.setupEvents();
   }
 
@@ -170,9 +168,8 @@ export default class Charts extends Field {
 
   updateChartWithDataSource() {
     console.log("updateChartWithDataSource called!");
-    const { chartType, dataSource } = this.component;
+    const { chartType, dataSource, stacked } = this.component;
 
-    // Check if the chart is initialized, if not, initialize it
     if (!this.chart) {
       console.warn("Chart is not initialized. Initializing now.");
       this.initChart();
@@ -189,7 +186,7 @@ export default class Charts extends Field {
     const sourceComponent = this.root.components.find(c => c.component.key === dataSource);
     const datasets = (sourceComponent ? sourceComponent.dataValue : this.component.datasets).map(row => ({
       label: this.evaluateExpression(row.label, data),
-      value: parseFloat(this.evaluateExpression(row.value, data)) || 0,
+      value: (chartType === 'line' || (chartType === 'bar' && stacked)) ? row.value : parseFloat(this.evaluateExpression(row.value, data)) || 0,
       color: this.evaluateExpression(row.color, data) || '#000000' // Default color if missing
     }));
 
@@ -207,6 +204,35 @@ export default class Charts extends Field {
   }
 
   generateChartOptions(type, datasets) {
+    let jsonData = [];
+    const { xAxisKey, jsonRawData, stacked, donut } = this.component;
+    let xAxisData = [];
+
+    if (type === 'line' || (type === 'bar' && stacked)) {
+      try {
+        // Parse JSON data from `jsonRawData` if available
+        if (Array.isArray(jsonRawData)) {
+          jsonData = jsonRawData;
+        } else {
+          const jsonString = jsonRawData;
+          const cleanedString = jsonString.replace(/[\n\t]/g, '').replace(/\s+/g, ' ').trim();
+          const formattedString = cleanedString.replace(/(\w+):/g, '"$1":').replace(/'/g, '"').trim().replace(/,\s*]$/, ']');
+          jsonData = JSON.parse(formattedString);
+        }
+
+        if ((!xAxisKey || !jsonData || jsonData.length === 0)) {
+          console.warn('No JSON data provided.');
+          return {};
+        }
+        console.log("JSON KEYS", Object.keys(jsonData));
+        xAxisData = jsonData.map((item) => item[xAxisKey] || '');
+        console.log("XAXIS DATA", xAxisData);
+      } catch (error) {
+        console.error("Invalid JSON format in jsonRawData:", error);
+        return {};
+      }
+    }
+
     const baseOptions = {
       title: {
         text: this.translate(this.component.title || 'Chart')
@@ -215,36 +241,51 @@ export default class Charts extends Field {
       // legend: {
       //   data: datasets.map((dataset) => this.translate(dataset.label)),
       // },
-      xAxis: type !== 'pie' ? {
-        type: 'category',
-        name: this.translate(this.component.xAxisLabel || ''),
-        data: datasets.map((dataset) => this.translate(dataset.label)),
-      } : null,
-      yAxis: type !== 'pie' ? {
-        type: 'value',
-        name: this.translate(this.component.yAxisLabel || ''),
-      } : null,
-      tooltip: { trigger: type === 'pie' ? 'item' : 'axis' },
+      ...(type !== 'pie' && {
+        xAxis: {
+          type: 'category',
+          name: this.translate(this.component.xAxisLabel || ''),
+          data: (type === 'line' || (type === 'bar' && stacked)) ? xAxisData : datasets.map((dataset) => this.translate(dataset.label)),
+        },
+        yAxis: {
+          type: 'value',
+          name: this.translate(this.component.yAxisLabel || ''),
+        },
+      }),
+      tooltip: {
+        trigger: type === 'pie' ? 'item' : 'axis',
+        ...((type === 'line' || (type === 'bar' && stacked)) && {
+          formatter: (params) => {
+            let tooltip = `${params[0].name}<br/>`;
+            params.forEach((item) => {
+              tooltip += `${item.marker} ${item.seriesName}: ${item.value.toLocaleString()}<br/>`;
+            });
+            return tooltip;
+          },
+        })
+      },
       series: []
     };
 
     switch (type) {
       case 'line':
-        baseOptions.series = [{
-          name: 'Line Series',
+        baseOptions.series = datasets.map(dataset => ({
+          name: dataset.label,
           type: 'line',
-          data: datasets.map(dataset => dataset.value),
+          smooth: true,
+          showSymbol: false,
+          data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
           itemStyle: {
-            color: (params) => datasets[params.dataIndex].color || '#000000' // Default to black if color is missing
+            color: dataset.color || '#000000' // Default to black if color is missing
           }
-        }];
+        }));
         break;
 
       case 'pie':
         baseOptions.series = [
           {
             type: 'pie',
-            radius: this.component.donut
+            radius: donut
               ? [this.component.innerRadius || '40%', this.component.outerRadius || '70%']
               : '50%',
             data: datasets.map((dataset) => ({
@@ -270,8 +311,27 @@ export default class Charts extends Field {
 
       case 'bar':
       default:
-        baseOptions.series = [{
-          name: 'Bar Series',
+        console.log("JSON DATA!!!", jsonData);
+        console.log("Data Sets!!!", datasets);
+        console.log("SERIES!!!", datasets.map(dataset => ({
+          name: dataset.label,
+          type: 'bar',
+          stack: 'total',
+          data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
+          itemStyle: {
+            color: dataset.color || '#000000' // Default to black if color is missing
+          }
+        })));
+        baseOptions.series = stacked ? datasets.map(dataset => ({
+          name: dataset.label,
+          type: 'bar',
+          stack: 'total',
+          data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
+          itemStyle: {
+            color: dataset.color || '#000000' // Default to black if color is missing
+          }
+        })) : [{
+          name: datasets.map(dataset => dataset.label),
           type: 'bar',
           data: datasets.map(dataset => ({
             value: dataset.value,
@@ -308,17 +368,12 @@ export default class Charts extends Field {
       this.updateChartWithDataSource();
     };
 
-    console.log("FIELD KEYS", fieldKeys);
-
-    // Loop through each field key and attach individual listeners
     fieldKeys.forEach((fieldKey) => {
       if (this.root.getComponent(fieldKey.field)) this.root.getComponent(fieldKey.field).on('change', () => {
-        console.log("Field changed:", fieldKey.field);
         onFormChange();
       });
     });
   }
-
 
   setupDataGridListener(dataSourceKey) {
     console.log("Listener", dataSourceKey);
@@ -330,7 +385,6 @@ export default class Charts extends Field {
       return;
     }
 
-    // Listen for changes in the DataGrid component's value
     sourceComponent.on('change', () => {
       this.updateChartWithDataSource();
     });
@@ -339,7 +393,7 @@ export default class Charts extends Field {
   setupEvents() {
     if (!this.chart) return;
 
-    this.component.events.forEach(({ eventId, eventScript }) => {
+    this.component.events?.forEach(({ eventId, eventScript }) => {
       this.chart.on(eventId, (event) => {
         const { chart, root: formio, component, data, submission, utils } = this;
         const func = new Function('event', 'chart', 'formio', 'data', 'component', 'submission', 'utils', eventScript);

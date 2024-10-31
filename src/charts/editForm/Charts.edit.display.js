@@ -33,6 +33,26 @@ export default [
   },
   {
     type: 'checkbox',
+    key: 'donut',
+    label: 'Donut Style',
+    input: true,
+    conditional: {
+      json: { "===": [{ var: 'data.chartType' }, 'pie'] }
+    },
+    weight: 1
+  },
+  {
+    type: 'checkbox',
+    key: 'stacked',
+    label: 'Stacked Bar Chart',
+    input: true,
+    conditional: {
+      json: { "===": [{ var: 'data.chartType' }, 'bar'] }
+    },
+    weight: 1
+  },
+  {
+    type: 'checkbox',
     input: true,
     key: 'refreshOnChange',
     label: 'Refresh On Change',

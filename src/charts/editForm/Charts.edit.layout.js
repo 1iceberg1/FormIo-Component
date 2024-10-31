@@ -17,6 +17,14 @@ export default [
   },
   {
     type: 'textfield',
+    key: 'aspectRatio',
+    label: 'Aspect Ratio',
+    weight: 0,
+    input: true,
+    defaultValue: '1',
+  },
+  {
+    type: 'textfield',
     key: 'xAxisLabel',
     label: 'X-Axis Label',
     weight: 1,
@@ -30,16 +38,6 @@ export default [
     weight: 1,
     input: true,
     conditional: { json: { "!==": [{ var: 'data.chartType' }, 'pie'] } }
-  },
-  {
-    type: 'checkbox',
-    key: 'donut',
-    label: 'Donut Style',
-    input: true,
-    conditional: {
-      json: { "===": [{ var: 'data.chartType' }, 'pie'] }
-    },
-    weight: 1
   },
   {
     type: 'textfield',

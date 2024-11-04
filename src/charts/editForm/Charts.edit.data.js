@@ -85,7 +85,7 @@ export default [
         input: true,
         key: 'color',
         label: 'Color',
-        widget: 'color',
+        // widget: 'color',
         placeholder: 'Enter dataset color',
       }
     ]

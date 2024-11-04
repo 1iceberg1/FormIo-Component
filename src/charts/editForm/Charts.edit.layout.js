@@ -25,6 +25,14 @@ export default [
   },
   {
     type: 'textfield',
+    key: 'aspectRatio',
+    label: 'Aspect Ratio',
+    weight: 0,
+    input: true,
+    defaultValue: '1',
+  },
+  {
+    type: 'textfield',
     key: 'xAxisLabel',
     label: 'X-Axis Label',
     weight: 1,
@@ -57,10 +65,34 @@ export default [
   },
   {
     type: 'textfield',
+    key: 'tooltipUnit',
+    label: 'Tooltip Unit (e.g., $)',
+    input: true,
+    defaultValue: '$',
+    weight: 2
+  },
+  {
+    type: 'textfield',
     key: 'outerRadius',
     label: 'Outer Radius (e.g., 70%)',
     input: true,
     defaultValue: '70%',
+    conditional: {
+      json: {
+        and: [
+          { "===": [{ var: 'data.chartType' }, 'pie'] },
+          { "===": [{ var: 'data.donut' }, true] }
+        ]
+      }
+    },
+    weight: 2
+  },
+  {
+    type: 'colorpicker',
+    key: 'centerBackgroundColor',
+    label: 'Center Background Color',
+    input: true,
+    defaultValue: '#FFFFFF',
     conditional: {
       json: {
         and: [

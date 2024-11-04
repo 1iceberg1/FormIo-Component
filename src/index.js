@@ -1,32 +1,41 @@
 import { Formio } from 'formiojs'
-import i18next from 'i18next';
 import Charts from './charts/Charts.js';
 import ColorPickerComponent from './colorpicker/ColorPicker.js';
 
-// Initialize i18next with desired languages and configurations
-i18next.init({
-   lng: 'en',
-   fallbackLng: 'en',
-   resources: {
-      en: {
-         translation: {
-            'Principal and Interest': 'Principal and Interest',
-            'Monthly Payment': 'Monthly Payment',
-         },
-      },
-      es: {
-         translation: {
-            'Principal and Interest': 'Principal e Interés',
-            'Monthly Payment': 'Pago Mensual',
-         },
-      },
+// // Initialize i18next with desired languages and configurations
+// i18next.init({
+//    lng: 'en',
+//    fallbackLng: 'en',
+//    resources: {
+//       en: {
+//          translation: {
+//             'Principal and Interest': 'Principal and Interest',
+//             'Monthly Payment': 'Monthly Payment',
+//          },
+//       },
+//       es: {
+//          translation: {
+//             'Principal and Interest': 'Principal e Interés',
+//             'Monthly Payment': 'Pago Mensual',
+//          },
+//       },
+//    },
+// });
+
+Formio.use([
+   {
+      components: {
+         charts: Charts
+      }
    },
-});
+   {
+      components: {
+         colorpicker: ColorPickerComponent
+      }
+   }
+])
 
-// Attach the initialized i18next instance to Formio
-Formio.i18next = i18next;
-
-Formio.Components.addComponent('colorpicker', ColorPickerComponent);
+// // Attach the initialized i18next instance to Formio
 
 // Formio.builder(document.getElementById("builder"), {}, {
 //    sanitizeConfig: {
@@ -327,7 +336,7 @@ const formJson = {
                      "type": 'charts',            // Custom component type registered with Formio
                      "key": 'loanAnalysisChart',  // Unique key
                      "label": 'Loan Analysis Chart',
-                     "chartType": 'bar',          // Specify the chart type
+                     "chartType": 'pie',          // Specify the chart type
                      "stacked": true,
                      "donut": true,
                      "innerRadius": '40%',
@@ -352,52 +361,75 @@ const formJson = {
                         { field: 'monthlyPayment' }
                      ],
                      jsonRawData: [
-                        { date: '202401', principal: 5000, interest: 2500, balance: 4950 },
-                        { date: '202402', principal: 5050, interest: 2450, balance: 4900 },
-                        { date: '202403', principal: 5100, interest: 2400, balance: 4850 },
-                        { date: '202404', principal: 5150, interest: 2350, balance: 4800 },
-                        { date: '202405', principal: 5200, interest: 2300, balance: 4750 },
-                        { date: '202406', principal: 5250, interest: 2250, balance: 4700 },
-                        { date: '202407', principal: 5300, interest: 2200, balance: 4650 },
-                        { date: '202408', principal: 5350, interest: 2150, balance: 4600 },
+                        { "date": "202401", "principal": 1184.03, "interest": 4503.67, "balance": 513815.97 },
+                        { "date": "202501", "principal": 6700.25, "interest": 24582.10, "balance": 507115.72 },
+                        { "date": "202601", "principal": 7685.81, "interest": 26440.39, "balance": 499429.91 },
+                        { "date": "202701", "principal": 8099.16, "interest": 26027.04, "balance": 491330.75 },
+                        { "date": "202801", "principal": 8534.77, "interest": 25591.43, "balance": 482795.98 },
+                        { "date": "202901", "principal": 8993.77, "interest": 25132.43, "balance": 473802.21 },
+                        { "date": "203001", "principal": 9477.51, "interest": 24648.69, "balance": 464324.70 },
+                        { "date": "203101", "principal": 9987.18, "interest": 24139.02, "balance": 454337.52 },
+                        { "date": "203201", "principal": 10524.32, "interest": 23601.88, "balance": 443813.20 },
+                        { "date": "203301", "principal": 11090.35, "interest": 23035.85, "balance": 432722.85 },
+                        { "date": "203401", "principal": 11686.81, "interest": 22439.39, "balance": 421036.04 },
+                        { "date": "203501", "principal": 12315.32, "interest": 21810.88, "balance": 408720.72 },
+                        { "date": "203601", "principal": 12977.67, "interest": 21148.53, "balance": 395743.05 },
+                        { "date": "203701", "principal": 13675.63, "interest": 20450.57, "balance": 382067.42 },
+                        { "date": "203801", "principal": 14411.16, "interest": 19715.04, "balance": 367656.26 },
+                        { "date": "203901", "principal": 15186.21, "interest": 18939.99, "balance": 352470.05 },
+                        { "date": "204001", "principal": 16002.94, "interest": 18123.26, "balance": 336467.11 },
+                        { "date": "204101", "principal": 16863.63, "interest": 17262.57, "balance": 319603.48 },
+                        { "date": "204201", "principal": 17770.57, "interest": 16355.63, "balance": 301832.91 },
+                        { "date": "204301", "principal": 18726.31, "interest": 15399.89, "balance": 283106.60 },
+                        { "date": "204401", "principal": 19733.45, "interest": 14392.75, "balance": 263373.15 },
+                        { "date": "204501", "principal": 20794.74, "interest": 13331.46, "balance": 242578.41 },
+                        { "date": "204601", "principal": 21913.14, "interest": 12213.06, "balance": 220665.27 },
+                        { "date": "204701", "principal": 23091.66, "interest": 11034.54, "balance": 197573.61 },
+                        { "date": "204801", "principal": 24333.58, "interest": 9792.62, "balance": 173240.03 },
+                        { "date": "204901", "principal": 25642.27, "interest": 8483.93, "balance": 147597.76 },
+                        { "date": "205001", "principal": 27021.39, "interest": 7104.81, "balance": 120576.37 },
+                        { "date": "205101", "principal": 28474.62, "interest": 5651.58, "balance": 92101.75 },
+                        { "date": "205201", "principal": 30006.04, "interest": 4120.16, "balance": 62095.71 },
+                        { "date": "205301", "principal": 31619.83, "interest": 2506.37, "balance": 30475.88 },
+                        { "date": "205401", "principal": 30475.88, "interest": 805.79, "balance": 0.00 }
                      ],
                      xAxisKey: 'date',
                      datasets: [
-                        // {
-                        //    label: "{{t('Principal and Interest')}}",
-                        //    value: "{{ data.monthlyPrincipalAndInterest }}",
-                        //    color: "#007bff",
-                        // },
-                        // {
-                        //    label: "{{t('Taxes')}}",
-                        //    value: "{{ data.monthlyTaxes }}",
-                        //    color: '#28a745'
-                        // },
-                        // {
-                        //    label: "{{t('HOA Dues')}}",
-                        //    value: "{{ data.monthlyHoa }}",
-                        //    color: "#ffc107"
-                        // },
-                        // {
-                        //    label: `{{t("Homeowner's Insurance")}}`,
-                        //    value: "{{ data.monthlyInsurance }}",
-                        //    color: "#dc3545"
-                        // }
                         {
-                           label: 'Principal',
-                           value: 'principal',
+                           label: "{{t('Principal and Interest')}}",
+                           value: "{{ monthlyPrincipalAndInterest }}",
                            color: "#007bff",
                         },
                         {
-                           label: 'Intereset',
-                           value: 'interest',
-                           color: "#28a745",
+                           label: "{{t('Taxes')}}",
+                           value: "{{ monthlyTaxes }}",
+                           color: '#28a745'
                         },
                         {
-                           label: 'Balance',
-                           value: 'balance',
-                           color: "#ffc107",
+                           label: "{{t('HOA Dues')}}",
+                           value: "{{ monthlyHoa }}",
+                           color: "#ffc107"
+                        },
+                        {
+                           label: `{{t("Homeowner's Insurance")}}`,
+                           value: "{{ monthlyInsurance }}",
+                           color: "#dc3545"
                         }
+                        // {
+                        //    label: 'Principal',
+                        //    value: 'principal',
+                        //    color: "#007bff",
+                        // },
+                        // {
+                        //    label: 'Intereset',
+                        //    value: 'interest',
+                        //    color: "#28a745",
+                        // },
+                        // {
+                        //    label: 'Balance',
+                        //    value: 'balance',
+                        //    color: "#ffc107",
+                        // }
                      ],
                      "input": false,
                      "tableView": false,

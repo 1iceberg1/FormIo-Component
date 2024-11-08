@@ -15,11 +15,11 @@ Formio.use([
   }
 ])
 
-Formio.builder(document.getElementById("builder"), {}, {
-   sanitizeConfig: {
-      addTags: ["svg", "path"],
-      addAttr: ["d", "viewBox"]
-   }
-}).then(() => {
+// Formio.builder(document.getElementById("builder"), {}, {
+//    sanitizeConfig: {
+//       addTags: ["svg", "path"],
+//       addAttr: ["d", "viewBox"]
+//    }
+// }).then(() => {
 
-});
+// });

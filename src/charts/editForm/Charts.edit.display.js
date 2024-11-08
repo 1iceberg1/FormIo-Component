@@ -180,49 +180,6 @@ export default [
     weight: 0
   },
   {
-    type: 'checkbox',
-    input: true,
-    key: 'refreshOnChange',
-    label: 'Refresh On Change',
-    dataSrc: 'boolean',
-    weight: 25,
-  },
-  {
-    type: 'datagrid',
-    input: true,
-    key: 'refreshOnFields',
-    label: 'Refresh On Field Change',
-    weight: 25,
-    conditional: {
-      json: { "===": [{ var: 'data.refreshOnChange' }, true] }
-    },
-    components: [
-      {
-        type: 'select',
-        input: true,
-        label: 'Field',
-        key: 'field',
-        dataSrc: 'custom',
-        valueProperty: 'key',
-        template: '<span>{{ item.label || item.key }}</span>',
-        clearOnHide: false,
-        data: {
-          custom: function (context) {
-            if (context.instance && context.instance.options && context.instance.options.editForm) {
-              // console.log("CONTEXT", context.instance.options.editForm);
-              const editFormComponents = context.instance.options.editForm.components;
-              const allComponents = getEndComponents(editFormComponents);
-
-              // Return an array of component keys for use in your form
-              return allComponents.map(component => ({ label: component.label, key: component.key }));
-            }
-            return [];
-          }
-        }
-      }
-    ]
-  },
-  {
     type: 'textarea',
     input: true,
     key: 'chartOptions',

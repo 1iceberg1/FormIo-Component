@@ -1,16 +1,9 @@
 import { Formio } from 'formiojs';
 import * as echarts from 'echarts';
 import chartsEditForm from './Charts.form.js';
+import { debounce } from 'lodash';
 
 const Field = Formio.Components.components.field;
-
-function debounce(func, delay) {
-  let timeout;
-  return function (...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), delay);
-  };
-}
 
 export default class Charts extends Field {
   static editForm = chartsEditForm;
@@ -28,8 +21,8 @@ export default class Charts extends Field {
       jsonRawData: [], // JSON data source
       xAxisKey: '', // key of the json object that represents xAxis
       dynamicUpdate: true, // Enable dynamic update by default
-      refreshOnChange: true, // Enable Refresh On Change option
-      refreshOnFields: [], // Fields to refresh on change
+      redrawDelay: 300,
+      redrawOn: [], // Fields that trigger a redraw when changed
       options: {},
       events: [],
       showChartTitle: false,
@@ -85,6 +78,7 @@ export default class Charts extends Field {
     super(component, options, data);
     this.chart = null;
     this.chartContainer = null;
+    this.debounceInterval = null; // Store the interval ID
   }
 
   render(content) {
@@ -97,36 +91,110 @@ export default class Charts extends Field {
     `);
   }
 
+  redraw() {
+    // Ensure chartContainer is available and component is visible before attempting to redraw
+    if (!this.chartContainer || !this.visible) {
+      return;
+    }
+
+    const debouncedUpdate = () => {
+      // Clear the existing interval if it's already set
+      if (this.debounceInterval) {
+        clearInterval(this.debounceInterval);
+      }
+
+      // Set a new interval to wait for changes
+      this.debounceInterval = setInterval(() => {
+        clearInterval(this.debounceInterval); // Clear the interval after execution
+        this.debounceInterval = null; // Reset the interval ID
+        this.updateChartWithDataSource(); // Perform the chart update
+      }, this.component.redrawDelay || 300);
+    };
+
+    this.debouncedUpdate();
+  }
+
+
   attach(element) {
+    // Load the DOM references
     this.loadRefs(element, {
       chartContainer: 'single'
     });
+
     super.attach(element);
+
     this.chartContainer = this.refs.chartContainer;
 
-    if (this.chartContainer) {
-      this.chartContainer.style.width = this.component.width || '100%';
-
-      // Use aspect-ratio if specified, else fallback to height
-      if (!this.component.height) {
-        this.chartContainer.style.aspectRatio = `${this.component.aspectRatio}`;
-      } else {
-        this.chartContainer.style.height = this.component.height;
+    // Initial visibility check
+    if (!this.visible) {
+      // If the component is not visible, ensure the chartContainer is hidden
+      if (this.chartContainer) {
+        this.chartContainer.style.display = 'none';
       }
-      this.initChart();
     } else {
-      // console.error("Chart container not found. Cannot initialize chart.");
+      // If the component is visible, make sure to initialize the chart
+      this.initializeChartContainer();
     }
+
+    // Add an event listener to handle visibility updates
+    this.root.on('change', () => {
+      const isVisible = this.checkConditions(); // Check if conditions are met
+      if (isVisible) {
+        // If the component becomes visible
+        this.showChartContainer();
+      } else {
+        // If the component should be hidden
+        this.hideChartContainer();
+      }
+    });
+
+    return element;
+  }
+
+  // Method to initialize and show the chart container
+  initializeChartContainer() {
+    if (!this.chartContainer) {
+      // Create the chartContainer div if it doesn't exist
+      this.chartContainer = document.createElement('div');
+      this.chartContainer.style.width = this.component.width || '100%';
+      this.chartContainer.style.height = this.component.height || '300px';
+      this.chartContainer.style.aspectRatio = this.component.aspectRatio || 1;
+      this.chartContainer.style.position = 'relative';
+      this.element.appendChild(this.chartContainer);
+    }
+
+    // Make sure the chart container is visible
+    this.chartContainer.style.display = 'block';
+    this.initChart(); // Initialize the chart
 
     this.addCenterContent();
 
-    if (this.component.refreshOnChange && this.component.refreshOnFields.length) {
-      this.setupDynamicFieldListeners(this.component.refreshOnFields);
+    // console.log("REDRAW ON", this.component.redrawOn);
+    if (this.component.redrawOn && Array.isArray(this.component.redrawOn)) {
+      this.setupDynamicFieldListeners(this.component.redrawOn);
     } else if (this.component.dynamicUpdate && this.component.dataSource) {
       this.setupDataGridListener(this.component.dataSource);
     }
 
-    return element;
+  }
+
+  // Method to hide the chart container
+  hideChartContainer() {
+    if (this.chartContainer) {
+      this.chartContainer.style.display = 'none';
+    }
+  }
+
+  // Method to show the chart container and update the chart
+  showChartContainer() {
+    if (!this.chartContainer) {
+      // If the chart container doesn't exist, initialize it
+      this.initializeChartContainer();
+    } else {
+      // If it exists, just make it visible
+      this.chartContainer.style.display = 'block';
+      // this.updateChartWithDataSource(); // Update the chart with data
+    }
   }
 
   addCenterContent() {
@@ -244,7 +312,7 @@ export default class Charts extends Field {
 
     // Generate chart options based on the data and update the chart
     const options = await this.generateChartOptions(chartType, datasets);
-    this.chart.setOption(options, true);
+    this.chart.setOption(options, true); // `true` allows for dynamic updating
 
     // Update center content dynamically based on data changes
     const centerContentElement = this.chartContainer.querySelector('.center-content');
@@ -422,17 +490,28 @@ export default class Charts extends Field {
               position: 'inside',              // Display labels inside the pie pieces
               // formatter: '{d}%',               // Display percentage with each piece
               formatter: (params) => {
-                // Check if value is greater than 0, then format using labelFormatter or return an empty string
-
                 if (labelFormatter) {
-                  // Use `evaluateExpression` to process the custom formatter input by the user
-                  return this.evaluateExpression(
+                  // Process the custom labelFormatter expression
+                  const processedFormatter = this.evaluateExpression(
                     labelFormatter,
                     { params }
                   );
+
+                  // Replace placeholders with corresponding values from params
+                  try {
+                    return processedFormatter
+                      .replace(/{d}/g, params.percent)   // Replace {d} with percentage
+                      .replace(/{c}/g, params.value)     // Replace {c} with value
+                      .replace(/{b}/g, params.name)      // Replace {b} with name
+                      .replace(/{a}/g, params.seriesName) // Replace {a} with series name
+                      .replace(/{e}/g, params.marker);   // Replace {e} with marker or other custom property
+                  } catch (error) {
+                    return '';
+                  }
                 }
 
-                return ''; // Hide label if value is 0 or less
+                // Default behavior: hide label if the value is 0 or less
+                return '';
               },
               ...(labelTextStyle && typeof labelTextStyle === 'string' &&
                 this.convertString2Json(labelTextStyle) || {
@@ -504,17 +583,43 @@ export default class Charts extends Field {
     //   this.updateChartWithDataSource();
     // };
 
+    const { redrawDelay } = this.component;
+    const delay = redrawDelay ?? 300;
+
     const debouncedUpdateChart = debounce(() => {
       this.updateChartWithDataSource();
-    }, 300); // Adjust the delay as needed (e.g., 300 milliseconds)
+    }, delay);
+
+    if (fieldKeys.includes('data')) {
+      this.root.on('change', () => {
+        debouncedUpdateChart();
+      })
+      return;
+    }
 
     fieldKeys.forEach((fieldKey) => {
-      if (this.root.getComponent(fieldKey.field)) this.root.getComponent(fieldKey.field).on('change', () => {
-        // onFormChange();
-        debouncedUpdateChart();
+      if (this.root.getComponent(fieldKey)) this.root.getComponent(fieldKey).on('change', (event) => {
+        if (event.changed?.component?.key && fieldKeys.includes(event.changed.component.key)) {
+          // onFormChange();
+          debouncedUpdateChart();
+        }
       });
     });
   }
+
+  debouncedUpdate = () => {
+    // Clear the existing interval if it's already set
+    if (this.debounceInterval) {
+      clearInterval(this.debounceInterval);
+    }
+
+    // Set a new interval to wait for changes
+    this.debounceInterval = setInterval(() => {
+      clearInterval(this.debounceInterval); // Clear the interval after execution
+      this.debounceInterval = null; // Reset the interval ID
+      this.updateChartWithDataSource(); // Perform the chart update
+    }, this.component.redrawDelay || 300);
+  };
 
   setupDataGridListener(dataSourceKey) {
     // console.log("Listener", dataSourceKey);
@@ -527,7 +632,7 @@ export default class Charts extends Field {
     }
 
     sourceComponent.on('change', () => {
-      this.updateChartWithDataSource();
+      this.debouncedUpdate();
     });
   }
 

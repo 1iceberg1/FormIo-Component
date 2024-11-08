@@ -89,5 +89,34 @@ export default [
         placeholder: 'Enter dataset color',
       }
     ]
+  },
+  {
+    type: 'select',
+    input: true,
+    key: 'redrawOn',
+    label: 'Redraw On',
+    tooltip: 'Select fields that trigger a redraw when their value changes.',
+    weight: 0,
+    multiple: true, // Enable multi-select
+    dataSrc: 'custom', // Use a custom data source
+    data: {
+      custom: function (context) {
+        // Populate the options dynamically with the form components
+        return context.instance.options.editForm.components.map(comp => ({
+          label: comp.label || comp.key,
+          value: comp.key,
+        }));
+      }
+    },
+    valueProperty: 'value', // Use the 'value' property from the data source
+    template: '<span>{{ item.label }}</span>', // Display the label in the dropdown
+    clearOnHide: true, // Clear value when hidden
+  },
+  {
+    type: 'number',
+    input: true,
+    key: 'redrawDelay',
+    label: 'Redraw Delay',
+    weight: 600,
   }
 ]

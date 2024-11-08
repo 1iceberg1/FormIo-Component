@@ -118,21 +118,30 @@ export default [
     key: 'legendPosition',
     label: 'Legend Position',
     weight: 1,
-    input: true
+    input: true,
+    conditional: {
+      json: { "===": [{ var: 'data.showLegend' }, true] }
+    },
   },
   {
     type: 'number',
     key: 'legendFontSize',
     label: 'Legend Font Size',
     weight: 1,
-    input: true
+    input: true,
+    conditional: {
+      json: { "===": [{ var: 'data.showLegend' }, true] }
+    },
   },
   {
     type: 'colorpicker',
     key: 'legendFontColor',
     label: 'Legend Font Color',
     weight: 1,
-    input: true
+    input: true,
+    conditional: {
+      json: { "===": [{ var: 'data.showLegend' }, true] }
+    },
   },
   {
     type: 'textfield',
@@ -171,46 +180,19 @@ export default [
     weight: 0
   },
   {
-    type: 'checkbox',
+    type: 'textarea',
     input: true,
-    key: 'refreshOnChange',
-    label: 'Refresh On Change',
-    dataSrc: 'boolean',
+    key: 'chartOptions',
+    label: "Chart Options",
+    defaultValue: "",
     weight: 20,
   },
   {
-    type: 'datagrid',
+    type: 'textarea',
     input: true,
-    key: 'refreshOnFields',
-    label: 'Refresh On Field Change',
-    weight: 25,
-    conditional: {
-      json: { "===": [{ var: 'data.refreshOnChange' }, true] }
-    },
-    components: [
-      {
-        type: 'select',
-        input: true,
-        label: 'Field',
-        key: 'field',
-        dataSrc: 'custom',
-        valueProperty: 'key',
-        template: '<span>{{ item.label || item.key }}</span>',
-        clearOnHide: false,
-        data: {
-          custom: function (context) {
-            if (context.instance && context.instance.options && context.instance.options.editForm) {
-              console.log("CONTEXT", context.instance.options.editForm);
-              const editFormComponents = context.instance.options.editForm.components;
-              const allComponents = getEndComponents(editFormComponents);
-
-              // Return an array of component keys for use in your form
-              return allComponents.map(component => ({label: component.label, key: component.key}));
-            }
-            return [];
-          }
-        }
-      }
-    ]
-  }
+    key: 'seriesOptions',
+    label: "Series Options",
+    defaultValue: "",
+    weight: 20,
+  },
 ];

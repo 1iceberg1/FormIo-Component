@@ -1,10 +1,9 @@
 import { Formio } from 'formiojs';
 import * as echarts from 'echarts';
 import chartsEditForm from './Charts.form.js';
+import { debounce } from 'lodash';
 
 const Field = Formio.Components.components.field;
-
-const t = Formio.i18next ? Formio.i18next.t.bind(Formio.i18next) : (key) => key;
 
 export default class Charts extends Field {
   static editForm = chartsEditForm;
@@ -17,11 +16,13 @@ export default class Charts extends Field {
       chartType: 'bar',
       dataSource: '', // Key of DataGrid component to use as data source
       datasets: [], // datasets configuration
+      debug: true,
+      dataUrl: '',
       jsonRawData: [], // JSON data source
       xAxisKey: '', // key of the json object that represents xAxis
       dynamicUpdate: true, // Enable dynamic update by default
-      refreshOnChange: true, // Enable Refresh On Change option
-      refreshOnFields: [], // Fields to refresh on change
+      redrawDelay: 300,
+      redrawOn: [], // Fields that trigger a redraw when changed
       options: {},
       events: [],
       showChartTitle: false,
@@ -29,7 +30,11 @@ export default class Charts extends Field {
       donut: false,
       innerRadius: '40%',
       outerRadius: '70%',
-      tooltipUnit: '$',
+      tooltipValueFormatter: '', // Custom JavaScript code for tooltip formatting
+      labelFormatter: '',
+      labelTextStyle: '',
+      chartOptions: '',
+      seriesOptions: '',
       centerContent: 'Center Content Here',
       centerFontSize: '16px',
       centerFontColor: '#333333',
@@ -73,6 +78,7 @@ export default class Charts extends Field {
     super(component, options, data);
     this.chart = null;
     this.chartContainer = null;
+    this.debounceInterval = null; // Store the interval ID
   }
 
   render(content) {
@@ -85,36 +91,110 @@ export default class Charts extends Field {
     `);
   }
 
+  redraw() {
+    // Ensure chartContainer is available and component is visible before attempting to redraw
+    if (!this.chartContainer || !this.visible) {
+      return;
+    }
+
+    const debouncedUpdate = () => {
+      // Clear the existing interval if it's already set
+      if (this.debounceInterval) {
+        clearInterval(this.debounceInterval);
+      }
+
+      // Set a new interval to wait for changes
+      this.debounceInterval = setInterval(() => {
+        clearInterval(this.debounceInterval); // Clear the interval after execution
+        this.debounceInterval = null; // Reset the interval ID
+        this.updateChartWithDataSource(); // Perform the chart update
+      }, this.component.redrawDelay || 300);
+    };
+
+    this.debouncedUpdate();
+  }
+
+
   attach(element) {
+    // Load the DOM references
     this.loadRefs(element, {
       chartContainer: 'single'
     });
+
     super.attach(element);
+
     this.chartContainer = this.refs.chartContainer;
 
-    if (this.chartContainer) {
-      this.chartContainer.style.width = this.component.width || '100%';
-
-      // Use aspect-ratio if specified, else fallback to height
-      if (!this.component.height) {
-        this.chartContainer.style.aspectRatio = `${this.component.aspectRatio}`;
-      } else {
-        this.chartContainer.style.height = this.component.height;
+    // Initial visibility check
+    if (!this.visible) {
+      // If the component is not visible, ensure the chartContainer is hidden
+      if (this.chartContainer) {
+        this.chartContainer.style.display = 'none';
       }
-      this.initChart();
     } else {
-      console.error("Chart container not found. Cannot initialize chart.");
+      // If the component is visible, make sure to initialize the chart
+      this.initializeChartContainer();
     }
+
+    // Add an event listener to handle visibility updates
+    this.root.on('change', () => {
+      const isVisible = this.checkConditions(); // Check if conditions are met
+      if (isVisible) {
+        // If the component becomes visible
+        this.showChartContainer();
+      } else {
+        // If the component should be hidden
+        this.hideChartContainer();
+      }
+    });
+
+    return element;
+  }
+
+  // Method to initialize and show the chart container
+  initializeChartContainer() {
+    if (!this.chartContainer) {
+      // Create the chartContainer div if it doesn't exist
+      this.chartContainer = document.createElement('div');
+      this.chartContainer.style.width = this.component.width || '100%';
+      this.chartContainer.style.height = this.component.height || '300px';
+      this.chartContainer.style.aspectRatio = this.component.aspectRatio || 1;
+      this.chartContainer.style.position = 'relative';
+      this.element.appendChild(this.chartContainer);
+    }
+
+    // Make sure the chart container is visible
+    this.chartContainer.style.display = 'block';
+    this.initChart(); // Initialize the chart
 
     this.addCenterContent();
 
-    if (this.component.refreshOnChange && this.component.refreshOnFields.length) {
-      this.setupDynamicFieldListeners(this.component.refreshOnFields);
+    // console.log("REDRAW ON", this.component.redrawOn);
+    if (this.component.redrawOn && Array.isArray(this.component.redrawOn)) {
+      this.setupDynamicFieldListeners(this.component.redrawOn);
     } else if (this.component.dynamicUpdate && this.component.dataSource) {
       this.setupDataGridListener(this.component.dataSource);
     }
 
-    return element;
+  }
+
+  // Method to hide the chart container
+  hideChartContainer() {
+    if (this.chartContainer) {
+      this.chartContainer.style.display = 'none';
+    }
+  }
+
+  // Method to show the chart container and update the chart
+  showChartContainer() {
+    if (!this.chartContainer) {
+      // If the chart container doesn't exist, initialize it
+      this.initializeChartContainer();
+    } else {
+      // If it exists, just make it visible
+      this.chartContainer.style.display = 'block';
+      // this.updateChartWithDataSource(); // Update the chart with data
+    }
   }
 
   addCenterContent() {
@@ -153,6 +233,13 @@ export default class Charts extends Field {
   evaluateExpression(expression, context = {}) {
     if (!expression) return expression;
 
+    const t = (text) => {
+      if (this.root && this.root.language) {
+        return this.root.i18next ? this.root.i18next.t(text) : text;
+      }
+      return text;
+    }
+
     const extendedContext = {
       ...context,
       t,
@@ -174,14 +261,24 @@ export default class Charts extends Field {
 
     this.updateChartWithDataSource();
     this.setupEvents();
+
+    // console.log("T result", t('Monthly Payment'));
   }
 
-  translate(text) {
-    return Formio.i18next ? Formio.i18next.t(text) : text;
+  async fetchDataFromUrl(url) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      // console.error("Failed to fetch data from URL:", error);
+      return [];
+    }
   }
 
-  updateChartWithDataSource() {
-    console.log("updateChartWithDataSource called!");
+  async updateChartWithDataSource() {
+    // console.log("updateChartWithDataSource called!");
     const { chartType, dataSource, stacked } = this.component;
 
     if (!this.chart) {
@@ -196,25 +293,26 @@ export default class Charts extends Field {
 
     const data = this.root.data || {}; // Access the form's data object
 
-    console.log("DATA", data);
+    // console.log("DATA", data);
 
     // Retrieve data from the specified DataGrid component, or fallback to this.component.datasets
     const sourceComponent = this.root.components.find(c => c.component.key === dataSource);
+    const utils = Formio.Utils;
     const datasets = (sourceComponent ? sourceComponent.dataValue : this.component.datasets || []).map(row => {
-      console.log("Data Value", this.evaluateExpression(row.value, data));
-      console.log("Data Color", this.evaluateExpression(row.color, data) || '#000000');
+      // console.log("Data Value", this.evaluateExpression(row.value, data));
+      // console.log("Data Color", this.evaluateExpression(row.color, data) || '#000000');
       return {
-        label: this.evaluateExpression(row.label, data),
-        value: (chartType === 'line' || (chartType === 'bar' && stacked)) ? row.value : parseFloat(this.evaluateExpression(row.value, data)) || 0,
-        color: this.evaluateExpression(row.color, data) || '#000000' // Default color if missing
+        label: this.evaluateExpression(row.label, { data, utils }),
+        value: (chartType === 'line' || (chartType === 'bar' && stacked)) ? row.value : parseFloat(this.evaluateExpression(row.value, { data, utils })) || 0,
+        color: this.evaluateExpression(row.color, { data, utils }) || '#000000' // Default color if missing
       }
     });
 
-    console.log("DataSets", datasets);
+    // console.log("DataSets", datasets);
 
     // Generate chart options based on the data and update the chart
-    const chartOptions = this.generateChartOptions(chartType, datasets);
-    this.chart.setOption(chartOptions, true); // `true` allows for dynamic updating
+    const options = await this.generateChartOptions(chartType, datasets);
+    this.chart.setOption(options, true); // `true` allows for dynamic updating
 
     // Update center content dynamically based on data changes
     const centerContentElement = this.chartContainer.querySelector('.center-content');
@@ -223,32 +321,44 @@ export default class Charts extends Field {
     }
   }
 
-  generateChartOptions(type, datasets) {
-    let jsonData = [];
-    const { xAxisKey, jsonRawData, stacked, donut, tooltipUnit } = this.component;
-    let xAxisData = [];
+  convertString2Json(jsonRawData) {
+    const jsonString = jsonRawData;
+    const cleanedString = jsonString.replace(/[\n\t]/g, '').replace(/\s+/g, ' ').trim();
+    const formattedString = cleanedString.replace(/(\w+):/g, '"$1":').replace(/'/g, '"').trim().replace(/,\s*]$/, ']');
+    try {
+      const result = JSON.parse(formattedString);
+      // console.log("JSON RESULT", result);
+      return result;
+    } catch (error) {
+    }
+    return {};
+  }
 
-    const unit = tooltipUnit || '';
+  async generateChartOptions(type, datasets) {
+    let jsonData = [];
+    const { xAxisKey, jsonRawData, stacked, donut, dataUrl, darkMode, tooltipValueFormatter, labelFormatter, labelTextStyle, showLegend, chartOptions, seriesOptions, debug } = this.component;
+    const utils = Formio.Utils;
+    let xAxisData = [];
+    let sOptions;
 
     if (type === 'line' || (type === 'bar' && stacked)) {
       try {
         // Parse JSON data from `jsonRawData` if available
-        if (Array.isArray(jsonRawData)) {
+        if (dataUrl) {
+          jsonData = await this.fetchDataFromUrl(dataUrl);
+        } else if (Array.isArray(jsonRawData)) {
           jsonData = jsonRawData;
-        } else if (typeof this.component.jsonRawData === 'string') {
-          const jsonString = jsonRawData;
-          const cleanedString = jsonString.replace(/[\n\t]/g, '').replace(/\s+/g, ' ').trim();
-          const formattedString = cleanedString.replace(/(\w+):/g, '"$1":').replace(/'/g, '"').trim().replace(/,\s*]$/, ']');
-          jsonData = JSON.parse(formattedString);
+        } else if (typeof jsonRawData === 'string') {
+          jsonData = this.convertString2Json(jsonRawData);
         }
 
         if ((!xAxisKey || !jsonData || !Array.isArray(jsonData) || jsonData.length === 0)) {
           console.warn('No JSON data provided.');
           return {};
         }
-        console.log("JSON KEYS", Object.keys(jsonData));
+        // console.log("JSON KEYS", Object.keys(jsonData));
         xAxisData = jsonData.map((item) => item[xAxisKey] || '');
-        console.log("XAXIS DATA", xAxisData);
+        // console.log("XAXIS DATA", xAxisData);
       } catch (error) {
         console.error("Invalid JSON format in jsonRawData:", error);
         return {};
@@ -258,7 +368,7 @@ export default class Charts extends Field {
     const baseOptions = {
       ...(this.component.showChartTitle && {
         title: {
-          text: this.translate(this.component.title || 'Chart'),
+          text: this.component.title || 'Chart',
           textStyle: {
             color: this.component.titleFontColor || '#000',
             fontSize: this.component.titleFontSize || 18,
@@ -268,50 +378,84 @@ export default class Charts extends Field {
         }
       }),
       backgroundColor: this.component.backgroundColor || '#FFFFFF',
-      legend: {
-        data: datasets.map((dataset) => this.translate(dataset.label)),
-        show: this.component.showLegend !== false,
-        orient: 'horizontal',
-        top: this.component.legendPosition || 'top',
-        textStyle: {
-          fontSize: this.component.legendFontSize || 12,
-          color: this.component.legendFontColor || '#000'
+      ...(showLegend && {
+        legend: {
+          data: datasets.map((dataset) => dataset.label),
+          show: showLegend !== false,
+          orient: 'horizontal',
+          top: showLegend ? (this.component.legendPosition || 'top') : -9999,
+          textStyle: {
+            fontSize: this.component.legendFontSize || 12,
+            color: this.component.legendFontColor || '#000'
+          }
         }
-      },
+      }),
       grid: {
         show: this.component.showGrid !== false,
         borderColor: this.component.gridColor || '#E0E0E0',
+        top: 0,  // Adjust to reduce space at the top
+        bottom: 0, // Adjust to reduce space at the bottom
         containLabel: true
       },
       ...(type !== 'pie' && {
         xAxis: {
           type: 'category',
-          name: this.translate(this.component.xAxisLabel || ''),
-          data: (type === 'line' || (type === 'bar' && stacked)) ? xAxisData : datasets.map((dataset) => this.translate(dataset.label)),
+          name: this.component.xAxisLabel || '',
+          data: (type === 'line' || (type === 'bar' && stacked)) ? xAxisData : datasets.map((dataset) => dataset.label),
         },
         yAxis: {
           type: 'value',
-          name: this.translate(this.component.yAxisLabel || ''),
+          name: this.component.yAxisLabel || '',
         },
       }),
       tooltip: {
         trigger: type === 'pie' ? 'item' : 'axis',
+
+        valueFormatter: (value) => {
+          // Use the evaluateExpression to evaluate the provided expression dynamically
+          const context = { value, utils };
+          const formattedValue = this.evaluateExpression(tooltipValueFormatter, context);
+          return formattedValue;
+        },
         ...((type === 'line' || (type === 'bar' && stacked)) ? {
           formatter: (params) => {
             let tooltip = `${params[0].name}<br/>`;
             params.forEach((item) => {
-              tooltip += `${item.marker} ${item.seriesName}: ${unit}${item.value.toLocaleString()}<br/>`;
+              const value = item.value;
+              const context = { value, utils };
+              const formattedValue = this.evaluateExpression(tooltipValueFormatter, context);
+              tooltip += `${item.marker} ${item.seriesName}: ${formattedValue}<br/>`;
             });
             return tooltip;
           },
         } : {
           formatter: (params) => {
-            return `${params.marker} ${params.name}: ${unit}${params.value.toLocaleString()} (${params.percent}%)`;
+            const value = params.value;
+            const percent = params.percent;
+            const context = { value, percent, utils };
+            const formattedValue = this.evaluateExpression(tooltipValueFormatter, context);
+            return `${params.marker} ${params.name}: ${formattedValue}`;
           },
         })
       },
       series: [],
     };
+
+    if (chartOptions && typeof chartOptions === 'string') {
+      const cOptions = this.convertString2Json(chartOptions);
+      for (const key in cOptions) {
+        if (cOptions.hasOwnProperty(key)) {
+          // If the key does not already exist in baseOptions, add it
+          if (!baseOptions.hasOwnProperty(key)) {
+            baseOptions[key] = cOptions[key];
+          }
+        }
+      }
+    }
+
+    if (seriesOptions && typeof seriesOptions === 'string') {
+      sOptions = this.convertString2Json(seriesOptions);
+    }
 
     switch (type) {
       case 'line':
@@ -323,7 +467,8 @@ export default class Charts extends Field {
           data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
           itemStyle: {
             color: dataset.color || '#000000' // Default to black if color is missing
-          }
+          },
+          ...sOptions
         }));
         break;
 
@@ -345,12 +490,37 @@ export default class Charts extends Field {
               position: 'inside',              // Display labels inside the pie pieces
               // formatter: '{d}%',               // Display percentage with each piece
               formatter: (params) => {
-                // Only show the label if the percentage is greater than 0
-                return params.percent > 0 ? `${params.percent}%` : '';
+                if (labelFormatter) {
+                  // Process the custom labelFormatter expression
+                  const processedFormatter = this.evaluateExpression(
+                    labelFormatter,
+                    { params }
+                  );
+
+                  // Replace placeholders with corresponding values from params
+                  try {
+                    return processedFormatter
+                      .replace(/{d}/g, params.percent)   // Replace {d} with percentage
+                      .replace(/{c}/g, params.value)     // Replace {c} with value
+                      .replace(/{b}/g, params.name)      // Replace {b} with name
+                      .replace(/{a}/g, params.seriesName) // Replace {a} with series name
+                      .replace(/{e}/g, params.marker);   // Replace {e} with marker or other custom property
+                  } catch (error) {
+                    return '';
+                  }
+                }
+
+                // Default behavior: hide label if the value is 0 or less
+                return '';
               },
-              fontSize: 14,                    // Adjust font size if needed
-              color: '#FFFFFF'                 // Set font color to white for better visibility
-            }
+              ...(labelTextStyle && typeof labelTextStyle === 'string' &&
+                this.convertString2Json(labelTextStyle) || {
+                fontSize: 14,
+                color: '#FFFFFF'
+              }
+              ),
+            },
+            ...sOptions
           },
         ];
         if (donut) {
@@ -362,23 +532,23 @@ export default class Charts extends Field {
               show: false // Hide the label for the inner part
             },
             silent: true // Prevents interactions on this series
-          })
+          });
         }
         break;
 
       case 'bar':
       default:
-        console.log("JSON DATA!!!", jsonData);
-        console.log("Data Sets!!!", datasets);
-        console.log("SERIES!!!", datasets.map(dataset => ({
-          name: dataset.label,
-          type: 'bar',
-          stack: 'total',
-          data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
-          itemStyle: {
-            color: dataset.color || '#000000' // Default to black if color is missing
-          }
-        })));
+        // console.log("JSON DATA!!!", jsonData);
+        // console.log("Data Sets!!!", datasets);
+        // console.log("SERIES!!!", datasets.map(dataset => ({
+        //   name: dataset.label,
+        //   type: 'bar',
+        //   stack: 'total',
+        //   data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
+        //   itemStyle: {
+        //     color: dataset.color || '#000000' // Default to black if color is missing
+        //   }
+        // })));
         baseOptions.series = stacked ? datasets.map(dataset => ({
           name: dataset.label,
           type: 'bar',
@@ -386,36 +556,74 @@ export default class Charts extends Field {
           data: jsonData.filter(item => item[dataset.value]).map((item) => item[dataset.value]),
           itemStyle: {
             color: dataset.color || '#000000' // Default to black if color is missing
-          }
+          },
+          ...sOptions
         })) : [{
           name: datasets.map(dataset => dataset.label),
           type: 'bar',
           data: datasets.map(dataset => ({
             value: dataset.value,
             itemStyle: { color: dataset.color || '#000000' } // Default to black if color is missing
-          }))
+          })),
+          ...sOptions
         }];
         break;
+    }
+
+    // Log options if debug is enabled
+    if (debug) {
+      console.log('DEBUG: ECharts options:', baseOptions);
     }
 
     return baseOptions;
   }
 
   setupDynamicFieldListeners(fieldKeys) {
-    const onFormChange = () => {
+    // const onFormChange = () => {
+    //   this.updateChartWithDataSource();
+    // };
+
+    const { redrawDelay } = this.component;
+    const delay = redrawDelay ?? 300;
+
+    const debouncedUpdateChart = debounce(() => {
       this.updateChartWithDataSource();
-    };
+    }, delay);
+
+    if (fieldKeys.includes('data')) {
+      this.root.on('change', () => {
+        debouncedUpdateChart();
+      })
+      return;
+    }
 
     fieldKeys.forEach((fieldKey) => {
-      if (this.root.getComponent(fieldKey.field)) this.root.getComponent(fieldKey.field).on('change', () => {
-        onFormChange();
+      if (this.root.getComponent(fieldKey)) this.root.getComponent(fieldKey).on('change', (event) => {
+        if (event.changed?.component?.key && fieldKeys.includes(event.changed.component.key)) {
+          // onFormChange();
+          debouncedUpdateChart();
+        }
       });
     });
   }
 
+  debouncedUpdate = () => {
+    // Clear the existing interval if it's already set
+    if (this.debounceInterval) {
+      clearInterval(this.debounceInterval);
+    }
+
+    // Set a new interval to wait for changes
+    this.debounceInterval = setInterval(() => {
+      clearInterval(this.debounceInterval); // Clear the interval after execution
+      this.debounceInterval = null; // Reset the interval ID
+      this.updateChartWithDataSource(); // Perform the chart update
+    }, this.component.redrawDelay || 300);
+  };
+
   setupDataGridListener(dataSourceKey) {
-    console.log("Listener", dataSourceKey);
-    console.log("root components", this.root.components);
+    // console.log("Listener", dataSourceKey);
+    // console.log("root components", this.root.components);
     const sourceComponent = this.root.components.find(c => c.component.key === dataSourceKey);
 
     if (!sourceComponent) {
@@ -424,7 +632,7 @@ export default class Charts extends Field {
     }
 
     sourceComponent.on('change', () => {
-      this.updateChartWithDataSource();
+      this.debouncedUpdate();
     });
   }
 

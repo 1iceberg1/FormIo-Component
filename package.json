@@ -20,6 +20,7 @@
   "dependencies": {
     "echarts": "^5.5.1",
     "formiojs": "^4.21.5",
-    "i18next": "^23.16.4"
+    "i18next": "^23.16.4",
+    "lodash": "^4.17.21"
   }
 }

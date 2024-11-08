@@ -65,11 +65,30 @@ export default [
   },
   {
     type: 'textfield',
-    key: 'tooltipUnit',
-    label: 'Tooltip Unit (e.g., $)',
+    key: 'tooltipValueFormatter',
+    label: 'Tooltip Value Formatter',
     input: true,
-    defaultValue: '$',
+    defaultValue: '',
     weight: 2
+  },
+  {
+    type: 'textfield',
+    key: 'labelFormatter',
+    label: 'Label Formatter',
+    input: true,
+    defaultValue: '',
+    weight: 2,
+    conditional: { json: { "===": [{ var: 'data.chartType' }, 'pie'] } }
+  },
+  {
+    type: 'textarea',
+    key: 'labelTextStyle',
+    label: "Label Text Style",
+    input: true,
+    defaultValue: '',
+    weight: 2,
+    placeholder: `Enter JSON data here e.g., { fontSize: 14, color: '#FFFFFF' }`,
+    conditional: { json: { "===": [{ var: 'data.chartType' }, 'pie'] } }
   },
   {
     type: 'textfield',
